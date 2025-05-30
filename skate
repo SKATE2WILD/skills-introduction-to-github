@@ -1,0 +1,105 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Define IR sensor pins
+#define IR_SENSOR_1 2  // Bay 1 sensor
+#define IR_SENSOR_2 3  // Bay 2 sensor
+#define IR_SENSOR_3 4  // Bay 3 sensor
+
+// Initialize LCD (0x27 is common I2C address for 16x2 LCD)
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// Custom car character (8x5 pixels)
+byte carChar[8] = {
+  B01110,
+  B11111,
+  B10101,
+  B11111,
+  B01110,
+  B00100,
+  B01110,
+  B01010
+};
+
+// Bay status tracking
+bool bayStatus[3] = {false, false, false};  // false=available, true=occupied
+
+void setup() {
+  // Initialize serial monitor for debugging
+  Serial.begin(9600);
+  
+  // Set IR sensor pins as inputs
+  pinMode(IR_SENSOR_1, INPUT);
+  pinMode(IR_SENSOR_2, INPUT);
+  pinMode(IR_SENSOR_3, INPUT);
+  
+  // Initialize LCD
+  lcd.init();
+  lcd.backlight();
+  
+  // Create custom car character
+  lcd.createChar(0, carChar);
+  
+  // Show startup message
+  lcd.setCursor(0, 0);
+  lcd.print("Parking System");
+  lcd.setCursor(0, 1);
+  lcd.print("Initializing...");
+  delay(2000);
+  lcd.clear();
+}
+
+void loop() {
+  // Read all sensor statuses (inverted because sensors typically give LOW when triggered)
+  bayStatus[0] = !digitalRead(IR_SENSOR_1);
+  bayStatus[1] = !digitalRead(IR_SENSOR_2);
+  bayStatus[2] = !digitalRead(IR_SENSOR_3);
+  
+  // Clear LCD before updating
+  lcd.clear();
+  
+  // Display bay status information
+  displayBayStatus();
+  
+  // Add delay to prevent flickering
+  delay(500);
+}
+
+void displayBayStatus() {
+  int occupiedCount = 0;
+  
+  // Count occupied bays
+  for (int i = 0; i < 3; i++) {
+    if (bayStatus[i]) {
+      occupiedCount++;
+    }
+  }
+  
+  // Line 1: Graphical representation of bays
+  lcd.setCursor(0, 0);
+  lcd.print("Bays: ");
+  
+  for (int i = 0; i < 3; i++) {
+    if (bayStatus[i]) {
+      lcd.write(byte(0));  // Display car character for occupied bays
+    } else {
+      lcd.print("-");      // Display dash for available bays
+    }
+    lcd.print(" ");       // Space between bays
+  }
+  
+  // Line 2: Numerical status
+  lcd.setCursor(0, 1); 
+  lcd.print("Open: ");
+  lcd.print(3 - occupiedCount);
+  lcd.print("/3 Available");
+  
+  // Serial monitor output for debugging
+  Serial.print("Bay Status: [");
+  for (int i = 0; i < 3; i++) {
+    Serial.print(bayStatus[i] ? "OCC" : "AVA");
+    if (i < 2) Serial.print("|");
+  }
+  Serial.print("] Open: ");
+  Serial.println(3 - occupiedCount);
+}
